@@ -96,6 +96,18 @@ header{margin-bottom:20px}
 .puntos i.fallo{background:#F3C3C6}
 .puntos i.hoy{outline:1.5px solid var(--tinta-baja);outline-offset:1.5px}
 
+/* ---------- la tarea de hoy ---------- */
+.destacada{display:flex;gap:13px;align-items:flex-start;background:var(--verde-suave);
+  border-color:var(--verde-borde);border-left:4px solid var(--verde)}
+.destacada .txt{flex:1;font-size:16px;font-weight:600;line-height:1.4;color:var(--tinta)}
+.destacada.ya .txt{text-decoration:line-through;text-decoration-color:var(--verde-borde);
+  color:var(--tinta-media);font-weight:500}
+.check-t{width:27px;height:27px;border-radius:50%;border:2px solid var(--verde);background:#fff;
+  flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;margin-top:1px}
+.check-t.on{background:var(--verde)}
+.check-t.on::after{content:"";width:6px;height:11px;border:solid #fff;
+  border-width:0 2.4px 2.4px 0;transform:rotate(45deg) translate(-1px,-1.5px)}
+
 /* ---------- pauta del día ---------- */
 .pauta{list-style:none;margin:0;padding:0}
 .paso{display:grid;grid-template-columns:46px 22px 1fr;gap:11px;align-items:start;padding:9px 0}
@@ -179,6 +191,14 @@ button:focus-visible{outline:2px solid var(--verde);outline-offset:2px}
   letter-spacing:.05em;text-transform:uppercase;line-height:1.1}
 .dia-sem.es-hoy .nom{color:var(--verde)}
 .dia-sem .res{font-size:12.5px;color:var(--tinta-baja);margin-top:3px}
+.cierre-fila{padding:12px 0;border-top:1px solid var(--linea)}
+.cierre-fila:first-child{border-top:none;padding-top:2px}
+.cierre-fila .nom{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:15px;
+  letter-spacing:.05em;text-transform:uppercase;color:var(--tinta-media)}
+.cierre-fila .res{font-size:13.5px;color:var(--tinta-media);margin-top:4px;line-height:1.45;
+  white-space:pre-wrap}
+.cierre-fila .tarea{color:var(--verde-tinta);font-weight:500}
+.cierre-fila .tarea.ya{text-decoration:line-through;color:var(--tinta-baja);font-weight:400}
 .fila-sem{display:flex;justify-content:space-between;align-items:center;gap:10px;
   padding:11px 0;border-top:1px solid var(--linea);font-size:13px;color:var(--tinta-media)}
 .fila-sem:first-child{border-top:none}
@@ -241,7 +261,7 @@ const ICONOS={
   calendario:'<svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3.5v3M16 3.5v3"/></svg>'
 };
 
-let D={bolos:{},vacas:{},dias:{},revisiones:{},ts:0};
+let D={bolos:{},vacas:{},dias:{},revisiones:{},cierres:{},ts:0};
 let vista="hoy", mesVista=null;
 
 /* ---------- almacenamiento ---------- */
@@ -269,7 +289,7 @@ function guardarCopia(v){
 function normalizar(o){
   o=o&&typeof o==="object"?o:{};
   return {bolos:o.bolos||{},vacas:o.vacas||{},dias:o.dias||{},
-          revisiones:o.revisiones||{},ts:o.ts||0};
+          revisiones:o.revisiones||{},cierres:o.cierres||{},ts:o.ts||0};
 }
 /* fusión: el calendario más reciente manda; los problemas no se pierden nunca */
 function fusionar(loc,rem){
@@ -277,6 +297,7 @@ function fusionar(loc,rem){
   const nuevo=(rem.ts>loc.ts)?rem:loc, viejo=(nuevo===rem)?loc:rem;
   const r={bolos:{...nuevo.bolos},vacas:{...nuevo.vacas},
            revisiones:{...viejo.revisiones,...nuevo.revisiones},
+           cierres:{...viejo.cierres,...nuevo.cierres},
            dias:{},ts:Math.max(loc.ts,rem.ts)};
   new Set([...Object.keys(loc.dias),...Object.keys(rem.dias)]).forEach(s=>{
     const a=loc.dias[s]||{}, b=rem.dias[s]||{};
@@ -508,6 +529,40 @@ function progresoHoy(s){
   return {hechos:ids.filter(id=>hecho(s,id)).length, total:ids.length};
 }
 
+/* ---------- el cierre del día ---------- */
+const cierreDe=s=>D.cierres[s]||(D.cierres[s]={hice:"",tarea:"",hecha:false});
+const hayCierre=s=>{const c=D.cierres[s];return !!(c&&((c.hice||"").trim()||(c.tarea||"").trim()))};
+/* la tarea que dejaste escrita el último día que cerraste (hasta 7 días atrás) */
+function tareaPendiente(s){
+  for(let i=1;i<=7;i++){
+    const p=sumar(s,-i), c=D.cierres[p];
+    if(c&&(c.tarea||"").trim())return{fecha:p,texto:c.tarea.trim(),hecha:!!c.hecha,dias:i};
+  }
+  return null;
+}
+let tCierre=null;
+function guardarCierre(){
+  const s=hoyIso(), c=cierreDe(s);
+  const h=document.getElementById("c-hice"), t=document.getElementById("c-tarea");
+  if(h)c.hice=h.value;
+  if(t)c.tarea=t.value;
+  if(activos(s).cierre)dia(s).hechos.cierre=hayCierre(s);
+  clearTimeout(tCierre);
+  tCierre=setTimeout(guardar,400);
+  refrescarCierre();
+}
+/* actualizamos solo lo que cambia: si repintáramos, se perdería el foco al escribir */
+function refrescarCierre(){
+  const s=hoyIso(), on=hecho(s,"cierre"), prog=progresoHoy(s);
+  document.querySelectorAll('.canal[data-h="cierre"]').forEach(el=>{
+    el.classList.toggle("on",on);
+    const e=el.querySelector(".estado"); if(e)e.textContent=on?"hecho":"pendiente";
+  });
+  document.querySelectorAll('.paso[data-h="cierre"]').forEach(el=>el.classList.toggle("hecho",on));
+  const p=document.getElementById("prog-hoy");
+  if(p)p.textContent=`${prog.hechos}/${prog.total} · racha ${racha()} d`;
+}
+
 function alternar(s,id){if(!activos(s)[id])return;const d=dia(s);d.hechos[id]=!d.hechos[id];guardar();pintar(true)}
 function anadir(t){
   const s=hoyIso(),d=dia(s);
@@ -554,6 +609,28 @@ function vistaHoy(){
       <span class="cuerpo"><b>${p.t}</b>${p.n?`<span>${p.n}</span>`:""}</span></li>`;
   }).join("");
 
+  const tp=tareaPendiente(s);
+  const cuando=tp?(tp.dias===1?"escrita ayer":`escrita el ${DOW[dowDe(tp.fecha)]} ${deIso(tp.fecha).getDate()}`):"";
+  const tarjetaTarea=tp?`<section>
+    <div class="cab"><span class="eyebrow">La única tarea de hoy</span>
+      <span class="eyebrow mono">${cuando}</span></div>
+    <div class="tarjeta destacada${tp.hecha?" ya":""}">
+      <button class="check-t${tp.hecha?" on":""}" id="tarea-ok" aria-label="Marcar la tarea como hecha"></button>
+      <div class="txt">${esc(tp.texto)}</div>
+    </div></section>`:"";
+
+  const cAct=activos(s).cierre, c=D.cierres[s]||{};
+  const seccionCierre=cAct?`<section>
+    <div class="cab"><span class="eyebrow">El cierre · 15 min</span>
+      <span class="eyebrow mono">19:00</span></div>
+    <div class="tarjeta">
+      <label class="eyebrow etiqueta" for="c-hice">Qué hice hoy</label>
+      <textarea id="c-hice" placeholder="Lo que sea. Dos líneas bastan.">${esc(c.hice||"")}</textarea>
+      <label class="eyebrow etiqueta" for="c-tarea" style="margin-top:14px">La única tarea de mañana</label>
+      <textarea id="c-tarea" placeholder="Una sola. La verás mañana nada más abrir.">${esc(c.tarea||"")}</textarea>
+      <p class="nota" style="margin-left:0">Se guarda solo. Mañana aparece arriba del todo.</p>
+    </div></section>`:"";
+
   const m=meta(s),n=d.problemas.length,total=totalProblemas();
   const lista=n?`<ul class="lista">${d.problemas.map((p,i)=>
       `<li><span class="idx mono">${String(i+1).padStart(2,"0")}</span><span>${esc(p.t)}</span>
@@ -569,8 +646,10 @@ function vistaHoy(){
     <p class="nota">${notaModo(modo.id,tipo,modo.n)}</p>
   </header>
 
+  ${tarjetaTarea}
+
   <section><div class="cab"><span class="eyebrow">Hábitos de hoy</span>
-    <span class="eyebrow mono">${prog.hechos}/${prog.total} · racha ${racha()} d</span></div>
+    <span class="eyebrow mono" id="prog-hoy">${prog.hechos}/${prog.total} · racha ${racha()} d</span></div>
     <div class="canales">${canales}</div></section>
 
   <section><div class="cab"><span class="eyebrow">Pauta del día</span></div>
@@ -585,7 +664,9 @@ function vistaHoy(){
       <textarea id="txt" style="margin-top:14px" placeholder="Un problema real que hayas visto. No una idea de negocio."></textarea>
       <button id="add" class="alta">Anotar problema</button>
       ${lista}
-    </div></section>`;
+    </div></section>
+
+  ${seccionCierre}`;
 }
 
 function vistaSemana(){
@@ -604,6 +685,21 @@ function vistaSemana(){
 
   <section><div class="cab"><span class="eyebrow">Plan de los 7 días</span></div>
     <div class="tarjeta">${dias}</div></section>
+
+  ${(()=>{
+    const con=sem.filter(hayCierre);
+    if(!con.length)return "";
+    return `<section><div class="cab"><span class="eyebrow">Cierres de la semana</span>
+      <span class="eyebrow mono">${plural(con.length,"día","días")}</span></div>
+      <div class="tarjeta">${con.map(x=>{
+        const c=D.cierres[x],f=deIso(x);
+        return `<div class="cierre-fila">
+          <div class="nom">${DOW[dowDe(x)]} ${f.getDate()}</div>
+          ${(c.hice||"").trim()?`<div class="res">${esc(c.hice.trim())}</div>`:""}
+          ${(c.tarea||"").trim()?`<div class="res tarea${c.hecha?" ya":""}">→ ${esc(c.tarea.trim())}</div>`:""}
+        </div>`;
+      }).join("")}</div></section>`;
+  })()}
 
   <section><div class="cab"><span class="eyebrow">Revisión del domingo</span>
     <span class="eyebrow mono">5 min</span></div>
@@ -731,6 +827,18 @@ function enlazar(){
   document.querySelectorAll("[data-borrar]").forEach(b=>
     b.addEventListener("click",()=>borrar(Number(b.dataset.borrar))));
 
+  ["c-hice","c-tarea"].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.addEventListener("input",guardarCierre);
+  });
+  const tOk=document.getElementById("tarea-ok");
+  if(tOk)tOk.addEventListener("click",()=>{
+    const tp=tareaPendiente(hoyIso());
+    if(!tp)return;
+    cierreDe(tp.fecha).hecha=!tp.hecha;
+    guardar();pintar(true);
+  });
+
   document.querySelectorAll(".dia[data-d]").forEach(el=>{
     const f=()=>ciclar(el.dataset.d);
     el.addEventListener("click",f);
@@ -795,7 +903,7 @@ function enlazar(){
   const reset=document.getElementById("reset");
   if(reset)reset.addEventListener("click",async()=>{
     if(!confirm("Se borran hábitos, problemas y revisiones, y el calendario vuelve al original. ¿Seguir?"))return;
-    D={bolos:{},vacas:{},dias:{},revisiones:{},ts:0};
+    D={bolos:{},vacas:{},dias:{},revisiones:{},cierres:{},ts:0};
     SEMILLA_BOLOS.forEach(s=>D.bolos[s]=true);
     SEMILLA_VACAS.forEach(s=>D.vacas[s]=true);
     await guardar();pintar();
