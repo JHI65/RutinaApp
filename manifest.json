@@ -1,0 +1,15 @@
+{
+  "name": "Mesa de rutina",
+  "short_name": "Mesa",
+  "description": "Sistema de rutina por modos para técnico de sonido autónomo",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#24272C",
+  "theme_color": "#24272C",
+  "icons": [
+    { "src": "icono.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
