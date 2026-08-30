@@ -1,0 +1,57 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Diagnóstico sync</title>
+<style>
+  body{font-family:-apple-system,sans-serif;background:#111;color:#eee;padding:16px;font-size:15px;line-height:1.5}
+  input{width:100%;box-sizing:border-box;padding:10px;margin:6px 0;background:#222;color:#eee;border:1px solid #444;border-radius:6px}
+  button{padding:10px 16px;margin:6px 6px 6px 0;border-radius:6px;border:none;background:#2d6;color:#000;font-weight:bold}
+  pre{white-space:pre-wrap;word-break:break-all;background:#000;padding:10px;border-radius:6px;border:1px solid #333}
+  .err{color:#f66}
+  .ok{color:#6f6}
+</style>
+<h2>Diagnóstico de sincronización</h2>
+<p>Token:</p>
+<input id="tok" placeholder="github_pat_...">
+<p>ID del gist:</p>
+<input id="gid" placeholder="ID del gist">
+<button id="b1">1. Probar token (GET /user)</button>
+<button id="b2">2. Probar gist (GET /gists/ID)</button>
+<button id="b3">3. Probar escritura (PATCH /gists/ID)</button>
+<pre id="out">Resultados aquí…</pre>
+<script>
+const out = document.getElementById('out');
+function log(s, cls){ out.innerHTML += `<div class="${cls||''}">${s}</div>`; }
+
+async function probar(nombre, ruta, opts){
+  const tok = document.getElementById('tok').value.trim();
+  const url = "https://api.github.com" + ruta;
+  log(`\n--- ${nombre} ---\nURL: ${url}\nToken (longitud): ${tok.length} caracteres`);
+  try{
+    const r = await fetch(url, {...opts, headers:{
+      "Accept":"application/vnd.github+json",
+      "Authorization":"Bearer "+tok,
+      "Content-Type":"application/json",
+      ...(opts&&opts.headers)
+    }});
+    const txt = await r.text();
+    log(`HTTP ${r.status} ${r.statusText}`, r.ok?'ok':'err');
+    log(txt.slice(0,300));
+  }catch(e){
+    log(`ERROR JS: ${e.name}: ${e.message}`, 'err');
+    if(e.stack) log(String(e.stack).slice(0,500));
+  }
+}
+
+document.getElementById('b1').onclick = () => probar('GET /user', '/user');
+document.getElementById('b2').onclick = () => {
+  const gid = document.getElementById('gid').value.trim();
+  probar('GET /gists/'+gid, '/gists/'+gid);
+};
+document.getElementById('b3').onclick = () => {
+  const gid = document.getElementById('gid').value.trim();
+  probar('PATCH /gists/'+gid, '/gists/'+gid, {method:'PATCH', body: JSON.stringify({description:"prueba diagnóstico"})});
+};
+
+log('Listo. User agent: ' + navigator.userAgent);
+log('¿Modo standalone (añadido a pantalla de inicio)?: ' + (window.navigator.standalone === true));
+</script>
