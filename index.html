@@ -431,6 +431,13 @@ function modoSemana(s){
   if(n>=3)return{id:"reducido",n};
   return{id:"completo",n};
 }
+/* modo reducido: 1 sesión de rocódromo a la semana, en el primer día libre que no sea
+   de recuperación. No se adelanta ni se fuerza: si no hay ningún día así, no hay sesión.
+   Da igual lo que venga antes o después (aunque al día siguiente haya bolo). */
+function diaRocodromo(s){
+  if(modoSemana(s).id!=="reducido")return null;
+  return semanaDe(s).find(x=>tipoDia(x)==="libre")||null;
+}
 // el físico no vuelve hasta el 3er día libre tras una racha de 4+
 function fisicoBloqueado(s){
   for(let i=1;i<=2;i++){
@@ -448,6 +455,7 @@ function activos(s){
   if(tipo!=="libre"||modo==="negra")return on;
   on.proyecto=true;on.cierre=true;
   if(modo==="completo"&&dowDe(s)<=3&&!fisicoBloqueado(s))on.fisico=true;
+  if(modo==="reducido"&&diaRocodromo(s)===s)on.fisico=true;
   return on;
 }
 const meta=s=>(modoSemana(s).id==="negra"||tipoDia(s)!=="libre")?1:3;
@@ -488,14 +496,22 @@ function pauta(s){
   B("09:00","Despertar, desayuno, ducha","Sin móvil hasta salir de casa.");
   H("minimo","10:00","20 minutos · 3 problemas","Señal: desayuno terminado.");
   if(act.fisico){
-    H("fisico","10:30",d===0||d===2?"Gimnasio · 2 h 30":"Rocódromo · 2 h 30","Señal: salir de la ducha.");
+    const roco=modo==="reducido"||d===1||d===3;
+    H("fisico","10:30",roco?"Rocódromo · 2 h 30":"Gimnasio · 2 h 30",
+      modo==="reducido"?"La sesión de la semana. Aunque mañana haya bolo, se hace igual."
+                       :"Señal: salir de la ducha.");
     B("13:00","Comida y descanso real","Sin culpa. No lo pelees.");
-  }else if(d<=3){
-    B("10:30", fisicoBloqueado(s)?"Físico todavía no":"Sin bloque físico hoy",
-      fisicoBloqueado(s)?"Vuelve el último, cuando el proyecto ya rueda.":"Modo reducido: solo mínimo y proyecto.");
-    B("13:00","Comida y descanso real","");
   }else{
-    B("11:00","Físico suave o nada","Fin de semana: sin obligación.");
+    if(fisicoBloqueado(s))
+      B("10:30","Físico todavía no","Vuelve el último, cuando el proyecto ya rueda.");
+    else if(modo==="reducido"){
+      const r=diaRocodromo(s);
+      B("10:30","Sin bloque físico hoy", r
+        ? `El rocódromo de esta semana ${r<s?"fue":"es"} el ${DOW[dowDe(r)]} ${deIso(r).getDate()}.`
+        : "Esta semana no hay día libre para el rocódromo.");
+    }
+    else if(d<=3) B("10:30","Sin bloque físico hoy","Solo mínimo y proyecto.");
+    else B("11:00","Físico suave o nada","Fin de semana: sin obligación.");
     B("13:00","Comida y descanso real","");
   }
   B("15:00","Recados y admin del trabajo","Lo aburrido, en la hora muerta.");
@@ -513,7 +529,7 @@ function resumenDia(s){
   if(t==="bolo")return "Bolo · 20 min antes de salir";
   if(t==="recuperación")return "Recuperación · dormir y 20 min";
   const a=activos(s), p=["20 min"];
-  if(a.fisico)p.push(dowDe(s)===0||dowDe(s)===2?"gimnasio 10:30":"rocódromo 10:30");
+  if(a.fisico)p.push(modoSemana(s).id==="reducido"||dowDe(s)===1||dowDe(s)===3?"rocódromo 10:30":"gimnasio 10:30");
   if(a.proyecto)p.push("proyecto 16:00");
   if(a.cierre)p.push("cierre 19:00");
   return p.join(" · ");
@@ -795,7 +811,7 @@ function notaModo(modo,tipo,n){
   if(tipo==="vacaciones")return "Vacaciones. Un problema al día y nada más. No te lleves el portátil.";
   if(tipo==="recuperación")return "Vienes de cuatro o más días seguidos. Hoy no arranca nada: duermes, comes y cierras con los 20 minutos.";
   if(modo==="negra")return `Semana negra (${plural(n,"día","días")} de bolo). Solo el hábito mínimo, antes de salir de casa. Dormir manda sobre todo lo demás.`;
-  if(modo==="reducido")return `Semana reducida (${plural(n,"día","días")} de bolo). Mínimo y proyecto 16:00–19:00. El físico no entra.`;
+  if(modo==="reducido")return `Semana reducida (${plural(n,"día","días")} de bolo). Mínimo y proyecto 16:00–19:00. Del físico, solo la sesión de rocódromo de la semana.`;
   if(tipo==="bolo")return "Día de bolo en semana normal: los 20 minutos antes de salir. El resto, en pausa.";
   return "Semana completa. Físico 10:30–13:00, descanso 13:00–15:00, proyecto 16:00–19:00.";
 }
