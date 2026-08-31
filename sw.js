@@ -1,4 +1,4 @@
-const CACHE = "mesa-rutina-v3";
+const CACHE = "mesa-rutina-v4";
 const BASE = new URL("./", self.location).pathname;
 const ARCHIVOS = [BASE, BASE+"index.html", BASE+"manifest.json", BASE+"icono.svg"];
 

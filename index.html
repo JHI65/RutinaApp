@@ -431,12 +431,14 @@ function modoSemana(s){
   if(n>=3)return{id:"reducido",n};
   return{id:"completo",n};
 }
-/* modo reducido: 1 sesión de rocódromo a la semana, en el primer día libre que no sea
-   de recuperación. No se adelanta ni se fuerza: si no hay ningún día así, no hay sesión.
-   Da igual lo que venga antes o después (aunque al día siguiente haya bolo). */
+/* modo reducido: 1 sesión de rocódromo a la semana, en un día libre que no sea de
+   recuperación. Se intenta martes o jueves (el formato de siempre); si esa semana no
+   hay ninguno libre, cae en el primer día libre que haya. No se adelanta ni se fuerza:
+   si no hay ningún día así, no hay sesión. Da igual lo que venga antes o después. */
 function diaRocodromo(s){
   if(modoSemana(s).id!=="reducido")return null;
-  return semanaDe(s).find(x=>tipoDia(x)==="libre")||null;
+  const libres=semanaDe(s).filter(x=>tipoDia(x)==="libre");
+  return libres.find(x=>dowDe(x)===1||dowDe(x)===3)||libres[0]||null;
 }
 // el físico no vuelve hasta el 3er día libre tras una racha de 4+
 function fisicoBloqueado(s){
@@ -495,26 +497,32 @@ function pauta(s){
   }
   B("09:00","Despertar, desayuno, ducha","Sin móvil hasta salir de casa.");
   H("minimo","10:00","20 minutos · 3 problemas","Señal: desayuno terminado.");
-  if(act.fisico){
-    const roco=modo==="reducido"||d===1||d===3;
-    H("fisico","10:30",roco?"Rocódromo · 2 h 30":"Gimnasio · 2 h 30",
-      modo==="reducido"?"La sesión de la semana. Aunque mañana haya bolo, se hace igual."
-                       :"Señal: salir de la ducha.");
-    B("13:00","Comida y descanso real","Sin culpa. No lo pelees.");
-  }else{
-    if(fisicoBloqueado(s))
-      B("10:30","Físico todavía no","Vuelve el último, cuando el proyecto ya rueda.");
-    else if(modo==="reducido"){
+  if(modo==="reducido"){
+    /* la mañana reducida: escalada, o inglés/finanzas/aprendizaje. Ver .md */
+    if(act.fisico){
+      H("fisico","10:30","Rocódromo · 1 h 30","La sesión de la semana. Ocupa el hueco de inglés y recados: hoy se saltan.");
+    }else{
       const r=diaRocodromo(s);
-      B("10:30","Sin bloque físico hoy", r
+      B("10:30","Inglés / finanzas / aprendizaje · 1 h 30", r&&r!==s
         ? `El rocódromo de esta semana ${r<s?"fue":"es"} el ${DOW[dowDe(r)]} ${deIso(r).getDate()}.`
-        : "Esta semana no hay día libre para el rocódromo.");
+        : "Esta semana no hay día libre para el rocódromo: la mañana es toda de aprendizaje.");
+      B("12:00","Recados y admin del trabajo","Lo aburrido, antes de comer.");
     }
-    else if(d<=3) B("10:30","Sin bloque físico hoy","Solo mínimo y proyecto.");
-    else B("11:00","Físico suave o nada","Fin de semana: sin obligación.");
-    B("13:00","Comida y descanso real","");
+    B("13:00","Comida y descanso real","Protegido. Sin culpa.");
+    B("15:00","Libre / colchón","Una hora sin plan, a propósito.");
+  }else{
+    if(act.fisico){
+      H("fisico","10:30",(d===1||d===3)?"Rocódromo · 2 h 30":"Gimnasio · 2 h 30","Señal: salir de la ducha.");
+      B("13:00","Comida y descanso real","Sin culpa. No lo pelees.");
+    }else{
+      if(fisicoBloqueado(s))
+        B("10:30","Físico todavía no","Vuelve el último, cuando el proyecto ya rueda.");
+      else if(d<=3) B("10:30","Sin bloque físico hoy","Solo mínimo y proyecto.");
+      else B("11:00","Físico suave o nada","Fin de semana: sin obligación.");
+      B("13:00","Comida y descanso real","");
+    }
+    B("15:00","Recados y admin del trabajo","Lo aburrido, en la hora muerta.");
   }
-  B("15:00","Recados y admin del trabajo","Lo aburrido, en la hora muerta.");
   if(act.proyecto)H("proyecto","16:00","Bloque de proyecto · 3 h","Señal: alarma a las 15:55.");
   if(act.cierre)H("cierre","19:00","Cierre · 15 min","Qué hice y cuál es la única tarea de mañana.");
   if(d===6)B("19:00","Revisión semanal · 5 min","Las tres preguntas de la pestaña Semana.");
@@ -528,8 +536,9 @@ function resumenDia(s){
   if(t==="vacaciones")return "Vacaciones · 1 problema al día";
   if(t==="bolo")return "Bolo · 20 min antes de salir";
   if(t==="recuperación")return "Recuperación · dormir y 20 min";
-  const a=activos(s), p=["20 min"];
-  if(a.fisico)p.push(modoSemana(s).id==="reducido"||dowDe(s)===1||dowDe(s)===3?"rocódromo 10:30":"gimnasio 10:30");
+  const a=activos(s), reducido=modoSemana(s).id==="reducido", p=["20 min"];
+  if(a.fisico)p.push(reducido||dowDe(s)===1||dowDe(s)===3?"rocódromo 10:30":"gimnasio 10:30");
+  else if(reducido)p.push("aprendizaje 10:30");
   if(a.proyecto)p.push("proyecto 16:00");
   if(a.cierre)p.push("cierre 19:00");
   return p.join(" · ");
@@ -811,7 +820,7 @@ function notaModo(modo,tipo,n){
   if(tipo==="vacaciones")return "Vacaciones. Un problema al día y nada más. No te lleves el portátil.";
   if(tipo==="recuperación")return "Vienes de cuatro o más días seguidos. Hoy no arranca nada: duermes, comes y cierras con los 20 minutos.";
   if(modo==="negra")return `Semana negra (${plural(n,"día","días")} de bolo). Solo el hábito mínimo, antes de salir de casa. Dormir manda sobre todo lo demás.`;
-  if(modo==="reducido")return `Semana reducida (${plural(n,"día","días")} de bolo). Mínimo y proyecto 16:00–19:00. Del físico, solo la sesión de rocódromo de la semana.`;
+  if(modo==="reducido")return `Semana reducida (${plural(n,"día","días")} de bolo). Mañanas de inglés, finanzas y aprendizaje; proyecto 16:00–19:00. Del físico, solo la sesión de rocódromo de la semana.`;
   if(tipo==="bolo")return "Día de bolo en semana normal: los 20 minutos antes de salir. El resto, en pausa.";
   return "Semana completa. Físico 10:30–13:00, descanso 13:00–15:00, proyecto 16:00–19:00.";
 }
