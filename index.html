@@ -71,7 +71,8 @@ header{margin-bottom:20px}
 .modo.on.negra .nom,.modo.on.negra .sub{color:var(--rojo-tinta)}
 
 /* ---------- canales (hábitos) ---------- */
-.canales{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}
+.canales{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+@media(min-width:440px){.canales{grid-template-columns:repeat(6,1fr)}}
 .canal{background:var(--tarjeta);border:1.5px solid var(--linea);border-radius:var(--r-s);
   padding:11px 3px 12px;display:flex;flex-direction:column;align-items:center;
   cursor:pointer;box-shadow:var(--sombra);transition:.2s;min-width:0}
@@ -209,6 +210,25 @@ button:focus-visible{outline:2px solid var(--verde);outline-offset:2px}
 .e-negra{background:var(--rojo-suave);color:var(--rojo-tinta)}
 .etiqueta{display:block;margin-bottom:6px}
 
+/* ---------- diario de la mañana ---------- */
+.animos{display:flex;gap:6px;flex-wrap:wrap}
+.animo{flex:1 1 0;min-width:58px;padding:10px 4px;font-size:12.5px;letter-spacing:.05em}
+.animo.on{background:var(--verde-suave);border-color:var(--verde-borde);color:var(--verde-tinta)}
+.grat-fila{display:flex;align-items:center;gap:9px;margin-top:8px}
+.grat-fila .idx{min-width:13px;padding-top:0}
+.animo-sem{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.ani-dia{text-align:center;min-width:0}
+.ani-dia .d{font-family:"Barlow Condensed",sans-serif;font-size:11.5px;letter-spacing:.08em;
+  color:var(--tinta-baja);margin-bottom:5px}
+.ani-dia .v{font-size:10.5px;padding:7px 2px;border-radius:var(--r-s);line-height:1.1;
+  background:var(--hueco);color:var(--tinta-baja);overflow:hidden;text-overflow:ellipsis}
+.ani-dia.es-hoy .d{color:var(--verde);font-weight:700}
+.ani-dia .a-bajo{background:var(--rojo-suave);color:var(--rojo-tinta)}
+.ani-dia .a-plano{background:var(--hueco);color:var(--tinta-media)}
+.ani-dia .a-bien{background:var(--verde-suave);color:var(--verde-tinta)}
+.ani-dia .a-fuerte{background:var(--verde);color:#fff;font-weight:600}
+.ani-dia .a-tenso{background:var(--ambar-suave);color:var(--ambar-tinta)}
+
 /* ---------- avisos y detalles ---------- */
 .aviso{border-left:3px solid var(--ambar-borde);background:var(--ambar-suave);
   padding:11px 13px;border-radius:0 var(--r-s) var(--r-s) 0;margin-top:10px;
@@ -251,9 +271,10 @@ const SEMILLA_BOLOS=["2026-08-29","2026-09-03","2026-09-04","2026-09-05","2026-0
 const SEMILLA_VACAS=[20,21,22,23,24,25,26,27,28,29,30].map(d=>"2026-09-"+d);
 
 const HABITOS=[
-  {id:"minimo",et:"20 min"},{id:"fisico",et:"Físico"},{id:"proyecto",et:"Proyecto"},
-  {id:"cierre",et:"Cierre"},{id:"movil",et:"Móvil fuera"}
+  {id:"diario",et:"Diario"},{id:"minimo",et:"20 min"},{id:"fisico",et:"Físico"},
+  {id:"proyecto",et:"Proyecto"},{id:"cierre",et:"Cierre"},{id:"movil",et:"Móvil fuera"}
 ];
+const ANIMOS=["bajo","plano","bien","fuerte","tenso"];
 
 const ICONOS={
   hoy:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.2l2.4 2.4 4.6-4.9"/></svg>',
@@ -261,7 +282,7 @@ const ICONOS={
   calendario:'<svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3.5v3M16 3.5v3"/></svg>'
 };
 
-let D={bolos:{},vacas:{},dias:{},revisiones:{},cierres:{},ts:0};
+let D={bolos:{},vacas:{},dias:{},revisiones:{},cierres:{},diarios:{},ts:0};
 let vista="hoy", mesVista=null;
 
 /* ---------- almacenamiento ---------- */
@@ -289,7 +310,7 @@ function guardarCopia(v){
 function normalizar(o){
   o=o&&typeof o==="object"?o:{};
   return {bolos:o.bolos||{},vacas:o.vacas||{},dias:o.dias||{},
-          revisiones:o.revisiones||{},cierres:o.cierres||{},ts:o.ts||0};
+          revisiones:o.revisiones||{},cierres:o.cierres||{},diarios:o.diarios||{},ts:o.ts||0};
 }
 /* fusión: el calendario más reciente manda; los problemas no se pierden nunca */
 function fusionar(loc,rem){
@@ -298,6 +319,7 @@ function fusionar(loc,rem){
   const r={bolos:{...nuevo.bolos},vacas:{...nuevo.vacas},
            revisiones:{...viejo.revisiones,...nuevo.revisiones},
            cierres:{...viejo.cierres,...nuevo.cierres},
+           diarios:{...viejo.diarios,...nuevo.diarios},
            dias:{},ts:Math.max(loc.ts,rem.ts)};
   new Set([...Object.keys(loc.dias),...Object.keys(rem.dias)]).forEach(s=>{
     const a=loc.dias[s]||{}, b=rem.dias[s]||{};
@@ -453,7 +475,7 @@ function fisicoBloqueado(s){
 /* ---------- generación de la rutina ---------- */
 function activos(s){
   const modo=modoSemana(s).id, tipo=tipoDia(s);
-  const on={minimo:true,movil:true,fisico:false,proyecto:false,cierre:false};
+  const on={diario:true,minimo:true,movil:true,fisico:false,proyecto:false,cierre:false};
   if(tipo!=="libre"||modo==="negra")return on;
   on.proyecto=true;on.cierre=true;
   if(modo==="completo"&&dowDe(s)<=3&&!fisicoBloqueado(s))on.fisico=true;
@@ -467,9 +489,11 @@ function pauta(s){
   const P=[];
   const H=(id,h,t,n)=>P.push({hab:id,h,t,n});
   const B=(h,t,n)=>P.push({h,t,n});
+  const J=(h,n)=>H("diario",h,"Diario de la mañana · 5 min",n);
 
   if(tipo==="vacaciones"){
     B("—","Vacaciones","Sin portátil, sin bloques, sin horarios.");
+    J("al despertar","Ánimo y tres agradecimientos. Aquí es lo único que escribes con calma.");
     H("minimo","cuando sea","1 problema en el móvil","Diez segundos. Solo cuenta que exista.");
     H("movil","23:00","Móvil fuera de la habitación","Protege el levantarte a la misma hora.");
     return P;
@@ -477,12 +501,14 @@ function pauta(s){
   if(tipo==="recuperación"){
     B("—","Día de recuperación","Vienes de 4+ días seguidos. Hoy no arranca nada.");
     B("hasta que","Dormir lo que haga falta","No pongas alarma.");
+    J("al levantarte","Cinco minutos. Hoy es el bloque que más sentido tiene.");
     H("minimo","cuando puedas","20 minutos · 1 problema","Aunque sean a las 23:00 y sea basura.");
     H("movil","23:00","Móvil fuera de la habitación","");
     return P;
   }
   if(tipo==="bolo"){
     B("09:00","Despertar, desayuno","Sin móvil hasta salir de casa.");
+    J("09:30","Antes del bolo, no después. Con el ánimo y una cosa ya cuenta.");
     H("minimo","antes de salir","20 minutos · 1 problema","Antes, nunca al volver. A las 03:00 no escribes nada.");
     B("—","Bolo","~10 h. Dormir manda sobre todo lo demás.");
     H("movil","al llegar","Móvil fuera de la habitación","");
@@ -490,12 +516,14 @@ function pauta(s){
   }
   // día libre
   if(modo==="negra"){
-    B("—","Semana negra","Se cancela todo menos el mínimo. No es fracaso, es el modo previsto.");
+    B("—","Semana negra","Se cancela todo menos el mínimo y el diario. No es fracaso, es el modo previsto.");
+    J("09:30","Cinco minutos, aunque el resto de la semana no exista.");
     H("minimo","tras desayuno","20 minutos · 1 problema","");
     H("movil","23:00","Móvil fuera de la habitación","");
     return P;
   }
   B("09:00","Despertar, desayuno, ducha","Sin móvil hasta salir de casa.");
+  J("09:30","Ánimo, por qué, y tres agradecimientos. Señal: café en la mano.");
   H("minimo","10:00","20 minutos · 3 problemas","Señal: desayuno terminado.");
   if(modo==="reducido"){
     /* la mañana reducida: escalada, o inglés/finanzas/aprendizaje. Ver .md */
@@ -533,10 +561,10 @@ function pauta(s){
 
 function resumenDia(s){
   const t=tipoDia(s);
-  if(t==="vacaciones")return "Vacaciones · 1 problema al día";
-  if(t==="bolo")return "Bolo · 20 min antes de salir";
-  if(t==="recuperación")return "Recuperación · dormir y 20 min";
-  const a=activos(s), reducido=modoSemana(s).id==="reducido", p=["20 min"];
+  if(t==="vacaciones")return "Vacaciones · diario y 1 problema";
+  if(t==="bolo")return "Bolo · diario y 20 min antes de salir";
+  if(t==="recuperación")return "Recuperación · dormir, diario y 20 min";
+  const a=activos(s), reducido=modoSemana(s).id==="reducido", p=["diario","20 min"];
   if(a.fisico)p.push(reducido||dowDe(s)===1||dowDe(s)===3?"rocódromo 10:30":"gimnasio 10:30");
   else if(reducido)p.push("aprendizaje 10:30");
   if(a.proyecto)p.push("proyecto 16:00");
@@ -574,18 +602,44 @@ function guardarCierre(){
   if(activos(s).cierre)dia(s).hechos.cierre=hayCierre(s);
   clearTimeout(tCierre);
   tCierre=setTimeout(guardar,400);
-  refrescarCierre();
+  refrescarHabito("cierre");
 }
 /* actualizamos solo lo que cambia: si repintáramos, se perdería el foco al escribir */
-function refrescarCierre(){
-  const s=hoyIso(), on=hecho(s,"cierre"), prog=progresoHoy(s);
-  document.querySelectorAll('.canal[data-h="cierre"]').forEach(el=>{
+function refrescarHabito(id){
+  const s=hoyIso(), on=hecho(s,id), prog=progresoHoy(s);
+  document.querySelectorAll(`.canal[data-h="${id}"]`).forEach(el=>{
     el.classList.toggle("on",on);
     const e=el.querySelector(".estado"); if(e)e.textContent=on?"hecho":"pendiente";
   });
-  document.querySelectorAll('.paso[data-h="cierre"]').forEach(el=>el.classList.toggle("hecho",on));
+  document.querySelectorAll(`.paso[data-h="${id}"]`).forEach(el=>el.classList.toggle("hecho",on));
   const p=document.getElementById("prog-hoy");
   if(p)p.textContent=`${prog.hechos}/${prog.total} · racha ${racha()} d`;
+}
+
+/* ---------- el diario de la mañana ---------- */
+const diarioDe=s=>D.diarios[s]||(D.diarios[s]={animo:"",porque:"",g:["","",""]});
+const hayDiario=s=>{
+  const j=D.diarios[s];
+  return !!(j&&((j.animo||"").trim()||(j.porque||"").trim()||(j.g||[]).some(x=>(x||"").trim())));
+};
+let tDiario=null;
+function guardarDiario(){
+  const s=hoyIso(), j=diarioDe(s);
+  const p=document.getElementById("d-porque");
+  if(p)j.porque=p.value;
+  j.g=[0,1,2].map(i=>{const el=document.getElementById("d-g"+i);return el?el.value:((j.g||[])[i]||"")});
+  dia(s).hechos.diario=hayDiario(s);
+  clearTimeout(tDiario);
+  tDiario=setTimeout(guardar,400);
+  refrescarHabito("diario");
+}
+function ponerAnimo(a){
+  const s=hoyIso(), j=diarioDe(s);
+  j.animo = j.animo===a ? "" : a;   // volver a tocarlo lo quita
+  document.querySelectorAll("[data-animo]").forEach(b=>b.classList.toggle("on",b.dataset.animo===j.animo));
+  dia(s).hechos.diario=hayDiario(s);
+  guardar();
+  refrescarHabito("diario");
 }
 
 function alternar(s,id){if(!activos(s)[id])return;const d=dia(s);d.hechos[id]=!d.hechos[id];guardar();pintar(true)}
@@ -644,6 +698,26 @@ function vistaHoy(){
       <div class="txt">${esc(tp.texto)}</div>
     </div></section>`:"";
 
+  const j=D.diarios[s]||{}, jg=j.g||[];
+  const seccionDiario=`<section>
+    <div class="cab"><span class="eyebrow">Diario de la mañana · 5 min</span>
+      <span class="eyebrow mono">09:30</span></div>
+    <div class="tarjeta">
+      <label class="eyebrow etiqueta">¿Cómo estoy?</label>
+      <div class="animos">${ANIMOS.map(a=>
+        `<button class="animo${j.animo===a?" on":""}" data-animo="${a}" aria-pressed="${j.animo===a}">${a}</button>`).join("")}</div>
+      <label class="eyebrow etiqueta" for="d-porque" style="margin-top:15px">¿Por qué?</label>
+      <textarea id="d-porque" placeholder="Una línea. Sin darle vueltas ni buscar la causa buena.">${esc(j.porque||"")}</textarea>
+      <label class="eyebrow etiqueta" style="margin-top:15px">Agradezco…</label>
+      <div class="grat-fila"><span class="idx mono">1</span>
+        <input id="d-g0" value="${esc(jg[0]||"")}" placeholder="algo concreto de ayer"></div>
+      <div class="grat-fila"><span class="idx mono">2</span>
+        <input id="d-g1" value="${esc(jg[1]||"")}" placeholder="alguien"></div>
+      <div class="grat-fila"><span class="idx mono">3</span>
+        <input id="d-g2" value="${esc(jg[2]||"")}" placeholder="algo tuyo"></div>
+      <p class="nota" style="margin-left:0">Se guarda solo. Con el ánimo y una cosa ya cuenta como hecho.</p>
+    </div></section>`;
+
   const cAct=activos(s).cierre, c=D.cierres[s]||{};
   const seccionCierre=cAct?`<section>
     <div class="cab"><span class="eyebrow">El cierre · 15 min</span>
@@ -680,6 +754,8 @@ function vistaHoy(){
   <section><div class="cab"><span class="eyebrow">Pauta del día</span></div>
     <div class="tarjeta"><ul class="pauta">${filas}</ul></div></section>
 
+  ${seccionDiario}
+
   <section><div class="cab"><span class="eyebrow">Los 20 minutos</span>
     <span class="eyebrow mono">${n}/${m} hoy</span></div>
     <div class="tarjeta">
@@ -710,6 +786,20 @@ function vistaSemana(){
 
   <section><div class="cab"><span class="eyebrow">Plan de los 7 días</span></div>
     <div class="tarjeta">${dias}</div></section>
+
+  ${(()=>{
+    if(!sem.some(hayDiario))return "";
+    const gr=sem.flatMap(x=>((D.diarios[x]||{}).g||[]).filter(t=>(t||"").trim()));
+    return `<section><div class="cab"><span class="eyebrow">Ánimo de la semana</span>
+      <span class="eyebrow mono">${plural(gr.length,"agradecimiento","agradecimientos")}</span></div>
+      <div class="tarjeta">
+        <div class="animo-sem">${sem.map(x=>{
+          const a=(D.diarios[x]||{}).animo||"";
+          return `<div class="ani-dia${x===s?" es-hoy":""}"><div class="d">${DOW[dowDe(x)]}</div>
+            <div class="v${a?" a-"+a:""}">${a||"—"}</div></div>`;
+        }).join("")}</div>
+      </div></section>`;
+  })()}
 
   ${(()=>{
     const con=sem.filter(hayCierre);
@@ -818,8 +908,8 @@ function vistaCalendario(){
 
 function notaModo(modo,tipo,n){
   if(tipo==="vacaciones")return "Vacaciones. Un problema al día y nada más. No te lleves el portátil.";
-  if(tipo==="recuperación")return "Vienes de cuatro o más días seguidos. Hoy no arranca nada: duermes, comes y cierras con los 20 minutos.";
-  if(modo==="negra")return `Semana negra (${plural(n,"día","días")} de bolo). Solo el hábito mínimo, antes de salir de casa. Dormir manda sobre todo lo demás.`;
+  if(tipo==="recuperación")return "Vienes de cuatro o más días seguidos. Hoy no arranca nada: duermes, comes, escribes el diario y cierras con los 20 minutos.";
+  if(modo==="negra")return `Semana negra (${plural(n,"día","días")} de bolo). Solo el diario y el hábito mínimo, antes de salir de casa. Dormir manda sobre todo lo demás.`;
   if(modo==="reducido")return `Semana reducida (${plural(n,"día","días")} de bolo). Mañanas de inglés, finanzas y aprendizaje; proyecto 16:00–19:00. Del físico, solo la sesión de rocódromo de la semana.`;
   if(tipo==="bolo")return "Día de bolo en semana normal: los 20 minutos antes de salir. El resto, en pausa.";
   return "Semana completa. Físico 10:30–13:00, descanso 13:00–15:00, proyecto 16:00–19:00.";
@@ -856,6 +946,12 @@ function enlazar(){
     const el=document.getElementById(id);
     if(el)el.addEventListener("input",guardarCierre);
   });
+  ["d-porque","d-g0","d-g1","d-g2"].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.addEventListener("input",guardarDiario);
+  });
+  document.querySelectorAll("[data-animo]").forEach(b=>
+    b.addEventListener("click",()=>ponerAnimo(b.dataset.animo)));
   const tOk=document.getElementById("tarea-ok");
   if(tOk)tOk.addEventListener("click",()=>{
     const tp=tareaPendiente(hoyIso());
@@ -928,7 +1024,7 @@ function enlazar(){
   const reset=document.getElementById("reset");
   if(reset)reset.addEventListener("click",async()=>{
     if(!confirm("Se borran hábitos, problemas y revisiones, y el calendario vuelve al original. ¿Seguir?"))return;
-    D={bolos:{},vacas:{},dias:{},revisiones:{},cierres:{},ts:0};
+    D={bolos:{},vacas:{},dias:{},revisiones:{},cierres:{},diarios:{},ts:0};
     SEMILLA_BOLOS.forEach(s=>D.bolos[s]=true);
     SEMILLA_VACAS.forEach(s=>D.vacas[s]=true);
     await guardar();pintar();
